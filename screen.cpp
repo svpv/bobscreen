@@ -1,30 +1,21 @@
 #include <stdio.h>
-#include <stddef.h>
-#include <windows.h>
+#include <stdint.h>
 
 //
 // try to find an adequate long-message mixing function for SpookyHash
 //
 
-typedef  unsigned long long  u8;
-
-#ifdef _MSC_VER
-# define INLINE __forceinline
-#else
-# define INLINE inline
-#endif
-
-class U8Helper
+class UInt64Helper
 {
 public:
   // return x rotated left by k
-  static INLINE u8 Rot64(u8 x, int k)
+  static inline uint64_t Rot64(uint64_t x, int k)
   {
     return (x << k) | (x >> (64-(k)));
   }
 
   // count how many bits are set in an 8-byte value
-  static u8 Count(u8 x)
+  static uint64_t Count(uint64_t x)
   {
     x = ((x & 0x5555555555555555LL) + ((x & 0xaaaaaaaaaaaaaaaaLL) >> 1));
     x = ((x & 0x3333333333333333LL) + ((x & 0xccccccccccccccccLL) >> 2));
@@ -38,12 +29,12 @@ public:
 
 
 // random number generator
-class Random : U8Helper
+class Random : UInt64Helper
 { 
 public:
-    inline u8 Value()
+    inline uint64_t Value()
     {
-        u8 e = m_a - Rot64(m_b, 23);
+        uint64_t e = m_a - Rot64(m_b, 23);
         m_a = m_b ^ Rot64(m_c, 16);
         m_b = m_c + Rot64(m_d, 11);
         m_c = m_d + e;
@@ -51,7 +42,7 @@ public:
         return m_d;
     }
 
-    inline void Init( u8 seed)
+    inline void Init( uint64_t seed)
     {
         m_a = 0xdeadbeef; 
         m_b = m_c = m_d = seed;
@@ -60,15 +51,15 @@ public:
     }
 
 private:
-    u8 m_a; 
-    u8 m_b; 
-    u8 m_c; 
-    u8 m_d;
+    uint64_t m_a;
+    uint64_t m_b;
+    uint64_t m_c;
+    uint64_t m_d;
 };
 
 
 // generate, test, and report mixing functions
-class Sieve : U8Helper
+class Sieve : UInt64Helper
 {
 public:
   Sieve(int seed, FILE *fp)
@@ -134,13 +125,8 @@ public:
 
   void Pre()
   {
-    fprintf(_fp, "#include <stddef.h>\n");
     fprintf(_fp, "#include <stdio.h>\n");
-    fprintf(_fp, "#include <windows.h>\n");
-    fprintf(_fp, "\n");
-    fprintf(_fp, "typedef  unsigned long long  u8;\n");
-    fprintf(_fp, "typedef  unsigned long       u4;\n");
-    fprintf(_fp, "typedef  char                u1;\n");
+    fprintf(_fp, "#include <stdint.h>\n");
     fprintf(_fp, "\n");
     fprintf(_fp, "#define VAR %d\n", _vars);
     fprintf(_fp, "#define ITERS (100000000)\n");
@@ -152,12 +138,12 @@ public:
   // print the function in C++ code
   void ReportCode(int version)
   {
-    fprintf(_fp, "void function%d(u8 *data, u8 *state)\n", version);
+    fprintf(_fp, "void function%d(uint64_t *data, uint64_t *state)\n", version);
     fprintf(_fp, "{\n");
     
     for (int iVar=0; iVar<_vars; ++iVar)
     {
-      fprintf(_fp, "    u8 s%d = state[%d];\n", iVar, iVar, iVar);
+      fprintf(_fp, "    uint64_t s%d = state[%d];\n", iVar, iVar, iVar);
     }
 
     for (int iIter=0; iIter<_iters; ++iIter)
@@ -182,13 +168,13 @@ public:
 
     fprintf(_fp, "}\n");
     fprintf(_fp, "\n");
-    fprintf(_fp, "void wrapper%d(u8 *data, u8 *state)\n", version);
+    fprintf(_fp, "void wrapper%d(uint64_t *data, uint64_t *state)\n", version);
     fprintf(_fp, "{\n");
-    fprintf(_fp, "  u8 a = GetTickCount();\n");
+    fprintf(_fp, "  uint64_t a = GetTickCount();\n");
     fprintf(_fp, "  for (int i=0; i<ITERS; ++i) {\n");
     fprintf(_fp, "    function%d(data, state);\n", version);
     fprintf(_fp, "  }\n");
-    fprintf(_fp, "  u8 z = GetTickCount();\n");
+    fprintf(_fp, "  uint64_t z = GetTickCount();\n");
     fprintf(_fp, "  if (z-a < CUT) {\n");
     fprintf(_fp, "    printf(\"");
     ReportStructure(version);
@@ -217,7 +203,7 @@ public:
     fprintf(_fp, "\n");
     fprintf(_fp, "int main(int argc, char **argv)\n");
     fprintf(_fp, "{\n");
-    fprintf(_fp, "  u8 a, state[VAR], data[VAR];\n");
+    fprintf(_fp, "  uint64_t a, state[VAR], data[VAR];\n");
     fprintf(_fp, "  int i;\n");
     fprintf(_fp, "  for (int i=0; i<VAR; ++i) state[i] = data[i] = i+argc;\n");
     for (i=0; i<numFunctions; ++i)
@@ -232,7 +218,7 @@ public:
 private:
 
   // print operation
-  static void INLINE PrintOp(FILE *fp, int k, int x, int y, int s)
+  static void inline PrintOp(FILE *fp, int k, int x, int y, int s)
   {
     if (k == 0) fprintf(fp, "    s%d += s%d;\n", x, y);
     if (k == 1) fprintf(fp, "    s%d -= s%d;\n", x, y);
@@ -241,7 +227,7 @@ private:
   }
 
   // evaluate operation
-  static void INLINE Op(int k, u8 &x, u8 y, int s)
+  static void inline Op(int k, uint64_t &x, uint64_t y, int s)
   {
     if (k == 0) x += y;
     else if (k == 1) x -= y;
@@ -250,7 +236,7 @@ private:
   }
 
   // evaluate operation in reverse
-  static void INLINE ROp(int k, u8 &x, u8 y, int s)
+  static void inline ROp(int k, uint64_t &x, uint64_t y, int s)
   {
     if (k == 0) x -= y;
     else if (k == 1) x += y;
@@ -259,7 +245,7 @@ private:
   }
 
   // evaluate the function
-  void Fun(int *shifts, u8 *state, u8 *data)
+  void Fun(int *shifts, uint64_t *state, uint64_t *data)
   {
     for (int iIter=0; iIter < _iters; ++iIter)
     {
@@ -278,7 +264,7 @@ private:
   }
 
   // evaluate the function in reverse
-  void RFun(int *shifts, u8 *state, u8 *data)
+  void RFun(int *shifts, uint64_t *state, uint64_t *data)
   {
     for (int iIter=_iters; iIter--;)
     {
@@ -298,7 +284,7 @@ private:
     }
   }
 
-  void Eval(int forwards, int start, u8 *state, u8 *data)
+  void Eval(int forwards, int start, uint64_t *state, uint64_t *data)
   {
     if (forwards)
     {
@@ -315,8 +301,8 @@ private:
     static const int _measures = 10;  // number of different ways of looking
     static const int _trials = 3;     // number of pairs of hashes
     static const int _limit =3*64;    // minimum number of bits affected
-    u8 a[_measures][_vars];
-    u8 zero[_vars];
+    uint64_t a[_measures][_vars];
+    uint64_t zero[_vars];
     int minVal = _vars*64;
 
     for (int iZero = 0; iZero < _vars; ++iZero)
@@ -329,7 +315,7 @@ private:
     {  
       for (int iBit2=iBit; iBit2<_vars*64; ++iBit2)
       {  
-	u8 total[_measures][_vars];  // accumulated affect per bit
+	uint64_t total[_measures][_vars];  // accumulated affect per bit
 	for (int iMeasure=0; iMeasure<_measures; ++iMeasure)
 	{
 	  for (int iVar=0; iVar<_vars; ++iVar)
@@ -341,10 +327,10 @@ private:
 	for (int iTrial=0; iTrial<_trials; ++iTrial)
 	{
 	  // test one pair of inputs
-	  u8 data[_vars];
+	  uint64_t data[_vars];
 	  for (int iVar=0; iVar<_vars; ++iVar)
 	  {
-	    u8 value = _r.Value();
+	    uint64_t value = _r.Value();
 	    // if (1 || iVar != goose) value = 0;  // hack
 	    a[0][iVar] = value;  // input/output of first of pair
 	    a[1][iVar] = value;  // input/output of second of pair
@@ -355,10 +341,10 @@ private:
 	  Eval(forwards, start, a[0], zero);
 	  
 	  // evaluate second of pair, differing in one bit
-	  data[iBit/64] ^= (((u8)1) << (iBit & 63));
+	  data[iBit/64] ^= (((uint64_t)1) << (iBit & 63));
 	  if (iBit2 != iBit)
 	  {
-	    data[iBit2/64] ^= (((u8)1) << (iBit2 & 63));
+	    data[iBit2/64] ^= (((uint64_t)1) << (iBit2 & 63));
 	  }
 	  Eval(forwards, start, a[1], data);
 	  
@@ -422,7 +408,7 @@ private:
 };
 
   
-void driver(u8 seed, FILE *fp, int numFunctions)
+void driver(uint64_t seed, FILE *fp, int numFunctions)
 {
   Sieve sieve(seed, fp);
 
