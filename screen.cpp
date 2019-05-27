@@ -150,7 +150,7 @@ public:
     {
       for (int iVar=0; iVar<_vars; ++iVar)
       {
-	fprintf(_fp, "    s%d += data[%d];\n", iVar, iVar);
+	fprintf(_fp, "    s%d += data[%d];", iVar, iVar);
 	for (int iOp=0; iOp<_ops; ++iOp)
 	{
 	  PrintOp(_fp, _op[iOp], 
@@ -158,6 +158,7 @@ public:
 		  (_v2[iOp] + iVar) % _vars, 
 		  _s[iVar]);
 	}
+	fprintf(_fp, "\n");
       }
     }
     
@@ -220,10 +221,10 @@ private:
   // print operation
   static void inline PrintOp(FILE *fp, int k, int x, int y, int s)
   {
-    if (k == 0) fprintf(fp, "    s%d += s%d;\n", x, y);
-    if (k == 1) fprintf(fp, "    s%d -= s%d;\n", x, y);
-    if (k == 2) fprintf(fp, "    s%d ^= s%d;\n", x, y);
-    if (k == 3) fprintf(fp, "    s%d = Rot64(s%d,%d);\n", x, x, s);
+    if (k == 0) fprintf(fp, "    s%d += s%d;", x, y);
+    if (k == 1) fprintf(fp, "    s%d -= s%d;", x, y);
+    if (k == 2) fprintf(fp, "    s%d ^= s%d;", x, y);
+    if (k == 3) fprintf(fp, "    s%d = Rot64(s%d,%d);", x, x, s);
   }
 
   // evaluate operation
@@ -378,9 +379,9 @@ private:
 	  }
 	  if (counter < _limit)
 	  {
-	    if (0)
+	    if (1)
 	    {
-	      printf("fail %d %d %d\n", iMeasure, iBit, counter);
+	      printf("// fail %d %d %d\n", iMeasure, iBit, counter);
 	    }
 	    return 0;
 	  }
@@ -420,8 +421,7 @@ void driver(uint64_t seed, FILE *fp, int numFunctions)
     sieve.Generate();
     if (sieve.Test())
     {
-      sieve.ReportStructure(version++);
-      printf("\n");
+      sieve.ReportCode(version++);
     }
   }
 
