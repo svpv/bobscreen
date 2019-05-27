@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <assert.h>
 
 //
 // try to find an adequate long-message mixing function for SpookyHash
@@ -8,9 +9,15 @@
 class UInt64Helper
 {
 public:
+  static inline uint64_t Bswap64(uint64_t x)
+  {
+    return __builtin_bswap64(x);
+  }
   // return x rotated left by k
   static inline uint64_t Rot64(uint64_t x, int k)
   {
+    if (k == 0 || k == 64)
+	return Bswap64(x);
     return (x << k) | (x >> (64-(k)));
   }
 
@@ -61,6 +68,7 @@ private:
 // generate, test, and report mixing functions
 class Sieve : UInt64Helper
 {
+  enum { OP_ADD, OP_SUB, OP_XOR, OP_ROT };
 public:
   Sieve(int seed, FILE *fp)
   {
@@ -81,20 +89,20 @@ public:
       _v1[iOp] = _r.Value() % _vars;
       _v2[iOp] = _r.Value() % _vars;
     }
-    _op[0] = 2;
+    _op[0] = OP_XOR;
     _v1[0] = 2;
     _v2[0] = 10;
-    _op[2] = 2;
+    _op[2] = OP_XOR;
     _v1[1] = 11;
     _v2[1] = 0;
-    _op[2] = 3;
+    _op[2] = OP_ROT;
     _v1[2] = 0;
     _v2[2] = 0;
     _v1[3] = 11;
     _v2[3] = 1;
     for (int iVar=0; iVar<_vars; ++iVar)
     {
-      _s[iVar] = _s[iVar + _vars] = (_r.Value() & 63);
+      _s[iVar] = _s[iVar + _vars] = (_r.Value() % 65);
     }
   }
 
@@ -221,28 +229,38 @@ private:
   // print operation
   static void inline PrintOp(FILE *fp, int k, int x, int y, int s)
   {
-    if (k == 0) fprintf(fp, "    s%d += s%d;", x, y);
-    if (k == 1) fprintf(fp, "    s%d -= s%d;", x, y);
-    if (k == 2) fprintf(fp, "    s%d ^= s%d;", x, y);
-    if (k == 3) fprintf(fp, "    s%d = Rot64(s%d,%d);", x, x, s);
+    switch (k) {
+    case OP_ADD: fprintf(fp, "    s%d += s%d;", x, y); break;
+    case OP_SUB: fprintf(fp, "    s%d -= s%d;", x, y); break;
+    case OP_XOR: fprintf(fp, "    s%d ^= s%d;", x, y); break;
+    default: assert(k == OP_ROT);
+      if (s == 0 || s == 64)
+	fprintf(fp, "    s%d = Bswap64(s%d);", x, x);
+      else
+	fprintf(fp, "    s%d = Rot64(s%d, %d);", x, x, s);
+    }
   }
 
   // evaluate operation
   static void inline Op(int k, uint64_t &x, uint64_t y, int s)
   {
-    if (k == 0) x += y;
-    else if (k == 1) x -= y;
-    else if (k == 2) x ^= y;
-    else if (k == 3) x = Rot64(x, s);
+    switch (k) {
+    case OP_ADD: x += y; break;
+    case OP_SUB: x -= y; break;
+    case OP_XOR: x ^= y; break;
+    default: assert(k == OP_ROT); x = Rot64(x, s);
+    }
   }
 
   // evaluate operation in reverse
   static void inline ROp(int k, uint64_t &x, uint64_t y, int s)
   {
-    if (k == 0) x -= y;
-    else if (k == 1) x += y;
-    else if (k == 2) x ^= y;
-    else if (k == 3) x = Rot64(x, (64-s));
+    switch (k) {
+    case OP_ADD: x -= y; break;
+    case OP_SUB: x += y; break;
+    case OP_XOR: x ^= y; break;
+    default: assert(k == OP_ROT); x = Rot64(x, 64 - s);
+    }
   }
 
   // evaluate the function
