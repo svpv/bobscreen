@@ -22,8 +22,11 @@ public:
   }
 
   // count how many bits are set in an 8-byte value
-  static uint64_t Count(uint64_t x)
+  static uint64_t Popcnt(uint64_t x)
   {
+#ifdef __GNUC__
+    return __builtin_popcountll(x);
+#endif
     x = ((x & 0x5555555555555555LL) + ((x & 0xaaaaaaaaaaaaaaaaLL) >> 1));
     x = ((x & 0x3333333333333333LL) + ((x & 0xccccccccccccccccLL) >> 2));
     x = ((x & 0x0f0f0f0f0f0f0f0fLL) + ((x & 0xf0f0f0f0f0f0f0f0LL) >> 4));
@@ -151,7 +154,7 @@ public:
     
     for (int iVar=0; iVar<_vars; ++iVar)
     {
-      fprintf(_fp, "    uint64_t s%d = state[%d];\n", iVar, iVar, iVar);
+      fprintf(_fp, "    uint64_t s%d = state[%d];\n", iVar, iVar);
     }
 
     for (int iIter=0; iIter<_iters; ++iIter)
@@ -264,7 +267,7 @@ private:
   }
 
   // evaluate the function
-  void Fun(int *shifts, uint64_t *state, uint64_t *data)
+  void Fun(int *shifts, uint64_t *state, const uint64_t *data)
   {
     for (int iIter=0; iIter < _iters; ++iIter)
     {
@@ -283,7 +286,7 @@ private:
   }
 
   // evaluate the function in reverse
-  void RFun(int *shifts, uint64_t *state, uint64_t *data)
+  void RFun(int *shifts, uint64_t *state, const uint64_t *data)
   {
     for (int iIter=_iters; iIter--;)
     {
@@ -321,43 +324,28 @@ private:
     static const int _trials = 3;     // number of pairs of hashes
     static const int _limit =3*64;    // minimum number of bits affected
     uint64_t a[_measures][_vars];
-    uint64_t zero[_vars];
     int minVal = _vars*64;
-
-    for (int iZero = 0; iZero < _vars; ++iZero)
-    {
-      zero[iZero] = 0;
-    }
 
     // iBit covers just key[0], because that is the variable we start at
     for (int iBit=0; iBit<64; ++iBit)
     {  
       for (int iBit2=iBit; iBit2<_vars*64; ++iBit2)
       {  
-	uint64_t total[_measures][_vars];  // accumulated affect per bit
-	for (int iMeasure=0; iMeasure<_measures; ++iMeasure)
-	{
-	  for (int iVar=0; iVar<_vars; ++iVar)
-	  {
-	    total[iMeasure][iVar] = 0;
-	  }
-	}
-
+	uint64_t total[_measures][_vars] = {};  // accumulated affect per bit
 	for (int iTrial=0; iTrial<_trials; ++iTrial)
 	{
 	  // test one pair of inputs
-	  uint64_t data[_vars];
+	  uint64_t data[_vars] = {};
 	  for (int iVar=0; iVar<_vars; ++iVar)
 	  {
 	    uint64_t value = _r.Value();
 	    // if (1 || iVar != goose) value = 0;  // hack
 	    a[0][iVar] = value;  // input/output of first of pair
 	    a[1][iVar] = value;  // input/output of second of pair
-	    data[iVar] = 0;
 	  }
 	  
 	  // evaluate first of pair
-	  Eval(forwards, start, a[0], zero);
+	  Eval(forwards, start, a[0], data);
 	  
 	  // evaluate second of pair, differing in one bit
 	  data[iBit/64] ^= (((uint64_t)1) << (iBit & 63));
@@ -393,7 +381,7 @@ private:
 	  int counter = 0;
 	  for (int iVar=0; iVar<_vars; ++iVar)
 	  {
-	    counter += Count(total[iMeasure][iVar]);
+	    counter += Popcnt(total[iMeasure][iVar]);
 	  }
 	  if (counter < _limit)
 	  {
