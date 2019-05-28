@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <assert.h>
 
@@ -479,5 +480,11 @@ void driver(uint64_t seed, FILE *fp, int numFunctions)
 
 int main(int argc, char **argv)
 {
-  driver(21, stdout, 200);
+  int n = 3;
+  if (argc > 1) {
+    assert(argc == 2);
+    n = atoi(argv[1]);
+    assert(n > 0);
+  }
+  driver(21, stdout, n);
 }
