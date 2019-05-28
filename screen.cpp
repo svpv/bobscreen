@@ -72,6 +72,24 @@ private:
 class Sieve : UInt64Helper
 {
   enum { OP_ADD, OP_SUB, OP_XOR, OP_ROT };
+  enum { MOD_ADDSUB = OP_XOR, MOD_BINOP = OP_ROT };
+
+  inline void EmitOp(int iOp, int OP)
+  {
+    _op[iOp] = OP;
+  }
+  inline void SetBinopVars(int iOp, int L, int R)
+  {
+    assert(_op[iOp] < MOD_BINOP);
+    _v1[iOp] = L;
+    _v2[iOp] = R;
+  }
+  inline void EmitRot(int iOp, int LR)
+  {
+    _op[iOp] = OP_ROT;
+    _v1[iOp] = _v2[iOp] = LR;
+  }
+
 public:
   Sieve(int seed, FILE *fp)
   {
@@ -86,23 +104,47 @@ public:
   // generate a new function at random
   void Generate()
   {
-    for (int iOp=0; iOp<_ops; ++iOp)
-    {
-      _op[iOp] = _r.Value() & 3;
-      _v1[iOp] = _r.Value() % _vars;
-      _v2[iOp] = _r.Value() % _vars;
+    // We need to perfrom the following steps:
+    // -  s0 ?= data[0]   data injection
+    // -  s2 ?= s10       unrelated long-distance mix
+    // -  s11 ?= s0       mixing the data into the previous var
+    // -  s0 = Rot64(s0)  late rotate, can be made early
+    // -  s11 ?= s1       mix old next var into the previous var
+
+    // Need one ROT, early or late.
+    int rotpos = 2 + _r.Value() % 2;
+    EmitRot(rotpos, 0);
+
+    // Need at least one ADD/SUB and at least one XOR.
+    int addop = _r.Value() % MOD_BINOP;
+    int addpos = 0;
+    int xorpos = 1 + _r.Value() % (_ops - 2);
+    xorpos += (xorpos >= rotpos);
+    if (addop == OP_XOR) {
+      addpos = xorpos;
+      xorpos = 0;
+      addop = _r.Value() % MOD_ADDSUB;
     }
-    _op[0] = OP_XOR;
-    _v1[0] = 2;
-    _v2[0] = 10;
-    _op[2] = OP_XOR;
-    _v1[1] = 11;
-    _v2[1] = 0;
-    _op[2] = OP_ROT;
-    _v1[2] = 0;
-    _v2[2] = 0;
-    _v1[3] = 11;
-    _v2[3] = 1;
+    EmitOp(addpos, addop);
+    EmitOp(xorpos, OP_XOR);
+
+    // The rest are either ADD/SUB or XOR.
+    for (int iOp = 0; iOp < _ops; iOp++) {
+      if (iOp == addpos || iOp == xorpos || iOp == rotpos)
+	continue;
+      EmitOp(iOp, _r.Value() % MOD_BINOP);
+    }
+
+    // Ops have been filled, connect vars to binops.
+    int iOp = 1;
+    iOp += (iOp == rotpos);
+    SetBinopVars(iOp++, 2, _vars - 2); // s2 ?= s10
+    iOp += (iOp == rotpos);
+    SetBinopVars(iOp++, _vars - 1, 0); // s11 ?= s0
+    iOp += (iOp == rotpos);
+    SetBinopVars(iOp++, _vars - 1, 1); // s11 ?= s1
+
+    // Fill in the rotation constatns.
     for (int iVar=0; iVar<_vars; ++iVar)
     {
       _s[iVar] = _s[iVar + _vars] = (_r.Value() % 65);
@@ -161,8 +203,9 @@ public:
     {
       for (int iVar=0; iVar<_vars; ++iVar)
       {
-	fprintf(_fp, "    s%d += data[%d];", iVar, iVar);
-	for (int iOp=0; iOp<_ops; ++iOp)
+	const char opc[] = "+-^????";
+	fprintf(_fp, "    s%d %c= data[%d];", iVar, opc[_op[0]], iVar);
+	for (int iOp=1; iOp<_ops; ++iOp)
 	{
 	  PrintOp(_fp, _op[iOp], 
 		  (_v1[iOp] + iVar) % _vars, 
@@ -273,8 +316,8 @@ private:
     {
       for (int iVar=0; iVar <_vars; ++iVar)
       {
-	state[iVar] += data[iVar];
-	for (int iOp=0; iOp < _ops; ++iOp)
+	Op(_op[0], state[iVar], data[iVar], 0);
+	for (int iOp=1; iOp < _ops; ++iOp)
 	{
 	  Op(_op[iOp], 
 	     state[(_v1[iOp] + iVar) % _vars], 
@@ -294,8 +337,8 @@ private:
       {
 	// the data is not being added symmetrically, but the goal is to test all deltas,
 	// not test them in the reverse order that they were tested forwards.
-	state[(iVar + 1) % _vars] -= data[_vars - iVar - 1];
-	for (int iOp=_ops; iOp--;)
+	ROp(_op[0], state[(iVar + 1) % _vars], data[_vars - iVar - 1], 0);
+	for (int iOp=_ops; --iOp;)
 	{
 	  ROp(_op[iOp], 
 	      state[(_v1[iOp] + iVar) % _vars], 
@@ -402,7 +445,7 @@ private:
   }
 
   static const int _vars = 12;
-  static const int _ops = 4;
+  static const int _ops = 5;
   static const int _iters = 1;
 
   FILE *_fp;       // output file pointer
