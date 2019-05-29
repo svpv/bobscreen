@@ -142,3 +142,23 @@ static void jins86_OPrr(struct jit *jit, int op, enum R86_e dst, enum R86_e src)
 void jins_ADD(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x01); }
 void jins_SUB(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x29); }
 void jins_XOR(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x31); }
+
+static void jins86_OPrs(struct jit *jit, int mod, enum R86_e reg, int imm8)
+{
+    int rex = 0x48;
+    rex |= (reg >= 8);
+    *jit->cur++ = rex;
+    *jit->cur++ = 0xc1;
+
+    int modrm = 3 << 6;
+    modrm |= (mod << 3);
+    modrm |= (reg & 7);
+    *jit->cur++ = modrm;
+    *jit->cur++ = imm8;
+}
+
+#define ShiftVal(imm8) (assert(imm8 >= 0), assert(imm8 < 64), imm8)
+#define OPrs(mod) jins86_OPrs(jit, mod, JRto86(reg), ShiftVal(imm8))
+
+void jins_ROTL(struct jit *jit, enum JR_e reg, int imm8) { OPrs(0); }
+void jins_ROTR(struct jit *jit, enum JR_e reg, int imm8) { OPrs(1); }
