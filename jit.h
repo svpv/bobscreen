@@ -20,6 +20,10 @@
 
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // This JIT virtual machine provides 15 general-purpose registers,
 // coincidentally numbered starting with 0 (so you don't have to use
 // their names).
@@ -62,4 +66,8 @@ void jins_MOVrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
 void jins_MOVmr(struct jit *jit, JINS_MEM_ARG, enum JR_e src);
 
 // After all the instruction are added, obtain a callable function.
-void (*jit_compile(struct jit *jit))();
+void *jit_compile(struct jit *jit);
+
+#ifdef __cplusplus
+}
+#endif

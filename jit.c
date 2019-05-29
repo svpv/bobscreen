@@ -112,7 +112,7 @@ void jit_free(struct jit *jit)
     free(jit);
 } 
 
-void (*jit_compile(struct jit *jit))()
+void *jit_compile(struct jit *jit)
 {
     jins_restoreRegs(jit);
     jins_RET(jit);
@@ -120,7 +120,7 @@ void (*jit_compile(struct jit *jit))()
     int rc = mprotect(jit->page, pagesize, PROT_READ | PROT_EXEC);
     assert(rc == 0);
 
-    return (void *) jit->page;
+    return jit->page;
 }
 
 static const uint8_t JRto86map[] = {

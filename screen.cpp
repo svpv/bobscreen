@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <assert.h>
+#include "jit.h"
 
 //
 // try to find an adequate long-message mixing function for SpookyHash
@@ -72,7 +73,7 @@ private:
 // generate, test, and report mixing functions
 class Sieve : UInt64Helper
 {
-  enum { OP_ADD, OP_SUB, OP_XOR, OP_ROT };
+  enum OP_e { OP_ADD, OP_SUB, OP_XOR, OP_ROT };
   enum { MOD_ADDSUB = OP_XOR, MOD_BINOP = OP_ROT };
 
   inline void EmitOp(int iOp, int OP)
@@ -288,80 +289,6 @@ private:
     }
   }
 
-  // evaluate operation
-  static void inline Op(int k, uint64_t &x, uint64_t y, int s)
-  {
-    switch (k) {
-    case OP_ADD: x += y; break;
-    case OP_SUB: x -= y; break;
-    case OP_XOR: x ^= y; break;
-    default: assert(k == OP_ROT); x = Rot64(x, s);
-    }
-  }
-
-  // evaluate operation in reverse
-  static void inline ROp(int k, uint64_t &x, uint64_t y, int s)
-  {
-    switch (k) {
-    case OP_ADD: x -= y; break;
-    case OP_SUB: x += y; break;
-    case OP_XOR: x ^= y; break;
-    default: assert(k == OP_ROT); x = Rot64(x, 64 - s);
-    }
-  }
-
-  // evaluate the function
-  void Fun(int *shifts, uint64_t *state, const uint64_t *data)
-  {
-    for (int iIter=0; iIter < _iters; ++iIter)
-    {
-      for (int iVar=0; iVar <_vars; ++iVar)
-      {
-	Op(_op[0], state[iVar], data[iVar], 0);
-	for (int iOp=1; iOp < _ops; ++iOp)
-	{
-	  Op(_op[iOp], 
-	     state[(_v1[iOp] + iVar) % _vars], 
-	     state[(_v2[iOp] + iVar) % _vars],
-	     shifts[iVar]);
-	}
-      }
-    }
-  }
-
-  // evaluate the function in reverse
-  void RFun(int *shifts, uint64_t *state, const uint64_t *data)
-  {
-    for (int iIter=_iters; iIter--;)
-    {
-      for (int iVar=_vars; iVar--;)
-      {
-	// the data is not being added symmetrically, but the goal is to test all deltas,
-	// not test them in the reverse order that they were tested forwards.
-	ROp(_op[0], state[(iVar + 1) % _vars], data[_vars - iVar - 1], 0);
-	for (int iOp=_ops; --iOp;)
-	{
-	  ROp(_op[iOp], 
-	      state[(_v1[iOp] + iVar) % _vars], 
-	      state[(_v2[iOp] + iVar) % _vars], 
-	      shifts[iVar]);
-	}
-      }
-    }
-  }
-
-  void Eval(int forwards, int start, uint64_t *state, uint64_t *data)
-  {
-    if (forwards)
-    {
-      Fun(&_s[start], state, data);
-    }
-    else
-    {
-      RFun(&_s[start], state, data);
-    }
-  }
-
   int OneTest(int forwards, int start, int goose)
   {
     static const int _measures = 10;  // number of different ways of looking
@@ -369,6 +296,8 @@ private:
     static const int _limit =3*64;    // minimum number of bits affected
     uint64_t a[_measures][_vars];
     int minVal = _vars*64;
+
+    JitMixFunc jitmix(*this, forwards, start);
 
     // iBit covers just key[0], because that is the variable we start at
     for (int iBit=0; iBit<64; ++iBit)
@@ -389,7 +318,7 @@ private:
 	  }
 	  
 	  // evaluate first of pair
-	  Eval(forwards, start, a[0], data);
+	  jitmix(a[0], data);
 	  
 	  // evaluate second of pair, differing in one bit
 	  data[iBit/64] ^= (((uint64_t)1) << (iBit & 63));
@@ -397,7 +326,7 @@ private:
 	  {
 	    data[iBit2/64] ^= (((uint64_t)1) << (iBit2 & 63));
 	  }
-	  Eval(forwards, start, a[1], data);
+	  jitmix(a[1], data);
 	  
 	  for (int iVar=0; iVar<_vars; ++iVar)
 	  {
@@ -444,6 +373,139 @@ private:
     }
     return minVal;
   }
+
+  class JitMixFunc
+  {
+    struct jit *jit;
+    typedef void (*func_t)(uint64_t *state, const uint64_t *data);
+    func_t func;
+
+    // Put the state variables into registers.
+    void Unpack()
+    {
+      for (int iVar=0; iVar <_vars; ++iVar)
+	jins_MOVrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG0, 8*iVar));
+    }
+
+    // Gather the state back.
+    void Bundle()
+    {
+      for (int iVar=0; iVar <_vars; ++iVar)
+	jins_MOVmr(jit, JINS_MEM(JR_ARG0, 8*iVar), (JR_e) iVar);
+    }
+
+    // Trickle-feed some data into the state: sX ?= data[X]
+    void Feed(OP_e op, int iVar)
+    {
+      switch (op) {
+      case OP_ADD: jins_ADDrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
+      case OP_SUB: jins_SUBrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
+      case OP_XOR: jins_XORrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
+      default: assert(0);
+      }
+    }
+
+    // In the reverse direction
+    void RFeed(OP_e op, int iVar)
+    {
+      switch (op) {
+      case OP_ADD: jins_SUBrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
+      case OP_SUB: jins_ADDrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
+      case OP_XOR: jins_XORrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
+      default: assert(0);
+      }
+    }
+
+    // A mixing step: sX ?= sY, or possibly sX = permute(sX, param)
+    void Op(OP_e op, JR_e dst, JR_e src, int param)
+    {
+      switch (op) {
+      case OP_ADD: jins_ADD(jit, dst, src); break;
+      case OP_SUB: jins_SUB(jit, dst, src); break;
+      case OP_XOR: jins_XOR(jit, dst, src); break;
+      default: assert(op == OP_ROT);
+	if (param % 64 == 0)
+	  jins_BSWAP(jit, dst);
+	else
+	  jins_ROTL(jit, dst, param);
+      }
+    }
+
+    void ROp(OP_e op, JR_e dst, JR_e src, int param)
+    {
+      switch (op) {
+      case OP_ADD: jins_SUB(jit, dst, src); break;
+      case OP_SUB: jins_ADD(jit, dst, src); break;
+      case OP_XOR: jins_XOR(jit, dst, src); break;
+      default: assert(op == OP_ROT);
+	if (param % 64 == 0)
+	  jins_BSWAP(jit, dst);
+	else
+	  jins_ROTL(jit, dst, 64 - param);
+      }
+    }
+
+    void CodegenForward(Sieve const& p, const int *shifts)
+    {
+      for (int iIter=0; iIter < _iters; ++iIter)
+      {
+	for (int iVar=0; iVar <_vars; ++iVar)
+	{
+	  Feed((OP_e) p._op[0], iVar);
+	  for (int iOp=1; iOp < _ops; ++iOp)
+	  {
+	    Op((OP_e) p._op[iOp],
+	       (JR_e)((p._v1[iOp] + iVar) % p._vars),
+	       (JR_e)((p._v2[iOp] + iVar) % p._vars),
+	       shifts[iVar]);
+	  }
+	}
+      }
+    }
+
+    void CodegenBackward(Sieve const& p, const int *shifts)
+    {
+      for (int iIter=_iters; iIter--;)
+      {
+	for (int iVar=_vars; iVar--;)
+	{
+	  // the data is not being added symmetrically, but the goal is to test all deltas,
+	  // not test them in the reverse order that they were tested forwards.
+	  RFeed((OP_e) p._op[0], iVar);
+	  for (int iOp=_ops; --iOp;)
+	  {
+	    ROp((OP_e) p._op[iOp],
+		(JR_e)((p._v1[iOp] + iVar) % _vars),
+		(JR_e)((p._v2[iOp] + iVar) % _vars),
+		shifts[iVar]);
+	  }
+	}
+      }
+    }
+
+  public:
+    JitMixFunc(Sieve const& p, bool forward, int start)
+    {
+      jit = jit_new();
+      Unpack();
+      if (forward)
+	CodegenForward(p, p._s + start);
+      else
+	CodegenBackward(p, p._s + start);
+      Bundle();
+      func = (func_t) jit_compile(jit);
+    }
+
+    ~JitMixFunc()
+    {
+      jit_free(jit);
+    }
+
+    void operator()(uint64_t *state, const uint64_t *data)
+    {
+      func(state, data);
+    }
+  };
 
   static const int _vars = 12;
   static const int _ops = 5;
