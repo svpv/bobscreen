@@ -57,6 +57,7 @@ void jins_ADDrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
 void jins_SUBrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
 void jins_XORrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
 
+void jins_MOV(struct jit *jit, enum JR_e dst, enum JR_e src);
 void jins_MOVrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
 void jins_MOVmr(struct jit *jit, JINS_MEM_ARG, enum JR_e src);
 

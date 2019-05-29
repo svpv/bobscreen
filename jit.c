@@ -153,6 +153,7 @@ static void jins86_OPrr(struct jit *jit, int op, enum R86_e dst, enum R86_e src)
 
 #define OPrr(op) jins86_OPrr(jit, op, JRto86(dst), JRto86(src))
 
+void jins_MOV(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x89); }
 void jins_ADD(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x01); }
 void jins_SUB(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x29); }
 void jins_XOR(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x31); }
