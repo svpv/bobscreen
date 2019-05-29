@@ -405,13 +405,13 @@ private:
       }
     }
 
-    // In the reverse direction
-    void RFeed(OP_e op, int iVar)
+    // In the reverse direction, not symmetric (see below)
+    void RFeed(OP_e op, int iState, int iData)
     {
       switch (op) {
-      case OP_ADD: jins_SUBrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
-      case OP_SUB: jins_ADDrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
-      case OP_XOR: jins_XORrm(jit, (JR_e) iVar, JINS_MEM(JR_ARG1, 8*iVar)); break;
+      case OP_ADD: jins_SUBrm(jit, (JR_e) iState, JINS_MEM(JR_ARG1, 8*iData)); break;
+      case OP_SUB: jins_ADDrm(jit, (JR_e) iState, JINS_MEM(JR_ARG1, 8*iData)); break;
+      case OP_XOR: jins_XORrm(jit, (JR_e) iState, JINS_MEM(JR_ARG1, 8*iData)); break;
       default: assert(0);
       }
     }
@@ -471,7 +471,7 @@ private:
 	{
 	  // the data is not being added symmetrically, but the goal is to test all deltas,
 	  // not test them in the reverse order that they were tested forwards.
-	  RFeed((OP_e) p._op[0], iVar);
+	  RFeed((OP_e) p._op[0], (iVar + 1) % _vars, _vars - iVar - 1);
 	  for (int iOp=_ops; --iOp;)
 	  {
 	    ROp((OP_e) p._op[iOp],
