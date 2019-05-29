@@ -216,3 +216,7 @@ static void jins86_OPrm(struct jit *jit, int op, enum R86_e reg, enum R86_e mem,
 
 void jins_MOVrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG) { OPrm(0x8b); }
 void jins_MOVmr(struct jit *jit, JINS_MEM_ARG, enum JR_e src) { OPmr(0x89); }
+
+void jins_ADDrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG) { OPrm(0x03); }
+void jins_SUBrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG) { OPrm(0x2b); }
+void jins_XORrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG) { OPrm(0x33); }
