@@ -50,6 +50,23 @@ do {							\
     jit_free(jit);					\
 } while (0)
 
+#define COP_ROTL(x, s) (x << s | x >> (64 - s))
+#define COP_ROTR(x, s) (x >> s | x << (64 - s))
+
+#define TEST_OPs(JOP)					\
+do {							\
+    struct jit *jit = jit_new();			\
+    int s = 1 + random() % 63;				\
+    jins_##JOP(jit, JR_ARG0, s);			\
+    jins_MOV(jit, JR0, JR_ARG0);			\
+    uint64_t (*func)(uint64_t x) =			\
+	jit_compile(jit);				\
+    uint64_t x = random();				\
+    uint64_t y = func(x);				\
+    assert(COP_##JOP(x, s) == y);			\
+    jit_free(jit);					\
+} while (0)
+
 static void test_swap(void)
 {
     struct jit *jit = jit_new();
@@ -96,6 +113,8 @@ int main()
 	TEST_OPm(ADD, +);
 	TEST_OPm(SUB, -);
 	TEST_OPm(XOR, ^);
+	TEST_OPs(ROTL);
+	TEST_OPs(ROTR);
 	test_swap();
 	test_XORswap();
     }
