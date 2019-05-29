@@ -177,3 +177,27 @@ static void jins86_OPr(struct jit *jit, int op, int modrm, enum JR_e reg)
 #define OPr(op, modrm) jins86_OPr(jit, op, modrm, JRto86(reg))
 
 void jins_BSWAP(struct jit *jit, enum JR_e reg) { OPr(0x0f, 0xc8); }
+
+static void jins86_OPrm(struct jit *jit, int op, enum R86_e reg, enum R86_e mem, int imm8)
+{
+    int rex = 0x48;
+    rex |= (reg >= R8) << 2;
+    rex |= (mem >= R8) << 0;
+    *jit->cur++ = rex;
+    *jit->cur++ = op;
+
+    int has8 = (imm8 != 0);
+    int modrm = (has8 << 6);
+    modrm |= (reg & 7) << 3;
+    modrm |= (mem & 7) << 0;
+    *jit->cur++ = modrm;
+    *jit->cur = imm8;
+    jit->cur += has8;
+}
+
+#define DispVal(imm8) (assert(imm8 >= -128 && imm8 < 128), imm8)
+#define OPrm(op) jins86_OPrm(jit, op, JRto86(dst), JRto86(mem), DispVal(imm8))
+#define OPmr(op) jins86_OPrm(jit, op, JRto86(src), JRto86(mem), DispVal(imm8))
+
+void jins_MOVrm(struct jit *jit, enum JR_e dst, enum JR_e mem, int imm8) { OPrm(0x8b); }
+void jins_MOVmr(struct jit *jit, enum JR_e mem, int imm8, enum JR_e src) { OPmr(0x89); }
