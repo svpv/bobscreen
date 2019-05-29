@@ -40,7 +40,7 @@ void jins_XOR(struct jit *jit, enum JR_e dst, enum JR_e src);
 
 void jins_ROTL(struct jit *jit, enum JR_e reg, int imm8);
 void jins_ROTR(struct jit *jit, enum JR_e reg, int imm8);
-void jins_BSWAP(struct jit *jit, enum JR_e dst);
+void jins_BSWAP(struct jit *jit, enum JR_e reg);
 
 void jins_ADDrm(struct jit *jit, enum JR_e dst, enum JR_e mem, int imm8);
 void jins_SUBrm(struct jit *jit, enum JR_e dst, enum JR_e mem, int imm8);
