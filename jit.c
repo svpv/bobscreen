@@ -114,3 +114,31 @@ void (*jit_compile(struct jit *jit))()
 
     return (void *) jit->page;
 }
+
+static const uint8_t JRto86map[] = {
+    RAX, RCX, RDX, RBX, RBP,
+    R8, R9, R10, R11, R12, R13, R14, R15,
+    RDI, RSI
+};
+
+#define JRto86(reg) (assert(reg < sizeof JRto86map), JRto86map[reg])
+
+static void jins86_OPrr(struct jit *jit, int op, enum R86_e dst, enum R86_e src)
+{
+    int rex = 0x48;           // REX.W
+    rex |= (src >= R8) << 2;  // REX.R
+    rex |= (dst >= R8) << 0;  // REX.B
+    *jit->cur++ = rex;
+    *jit->cur++ = op;
+
+    int modrm = 3 << 6;
+    modrm |= (src & 7) << 3;
+    modrm |= (dst & 7) << 0;
+    *jit->cur++ = modrm;
+}
+
+#define OPrr(op) jins86_OPrr(jit, op, JRto86(dst), JRto86(src))
+
+void jins_ADD(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x01); }
+void jins_SUB(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x29); }
+void jins_XOR(struct jit *jit, enum JR_e dst, enum JR_e src) { OPrr(0x31); }
