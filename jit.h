@@ -20,18 +20,29 @@
 
 #pragma once
 
-// The set of registers is not particularly abstract, it is rather tailored
-// for the purpose of screening SpookyMix-like functions.  We provide 13
-// registers for state variables, starting with 0, and 2 registers to pass
-// arguments.
+// This JIT virtual machine provides 15 general-purpose registers,
+// coincidentally numbered starting with 0 (so you don't have to use
+// their names).
 enum JR_e {
-    JR_S0, JR_S1, JR_S2, JR_S3, JR_S4, JR_S5, JR_S6, JR_S7,
-    JR_S8, JR_S9, JR_S10, JR_S11, JR_S12,
-    JR_ARG0, JR_ARG1,
+    JR0, JR1, JR2, JR3, JR4, JR5, JR6, JR7,
+    JR8, JR9, JR10, JR11, JR12, JR13, JR14,
 };
+
+// The calling convention: arguments are passed in R14, R13, R12, R11,
+// i.e. in reverse order; up to 4 arguments can be passed.  The return
+// value is passed back in JR0.
+#define JR_ARG0 JR14
+#define JR_ARG1 JR13
+#define JR_ARG2 JR12
+#define JR_ARG3 JR11
 
 struct jit *jit_new(void);
 void jit_free(struct jit *jit);
+
+// A memory reference: base register with displacement.
+#define JINS_MEM(reg, disp8) reg, disp8
+#define JINS_MEM0(reg) reg, 0
+#define JINS_MEM_ARG enum JR_e mem, int disp8
 
 // Feed some instructions into the JIT compiler.
 void jins_ADD(struct jit *jit, enum JR_e dst, enum JR_e src);
@@ -42,12 +53,12 @@ void jins_ROTL(struct jit *jit, enum JR_e reg, int imm8);
 void jins_ROTR(struct jit *jit, enum JR_e reg, int imm8);
 void jins_BSWAP(struct jit *jit, enum JR_e reg);
 
-void jins_ADDrm(struct jit *jit, enum JR_e dst, enum JR_e mem, int imm8);
-void jins_SUBrm(struct jit *jit, enum JR_e dst, enum JR_e mem, int imm8);
-void jins_XORrm(struct jit *jit, enum JR_e dst, enum JR_e mem, int imm8);
+void jins_ADDrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
+void jins_SUBrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
+void jins_XORrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
 
-void jins_MOVrm(struct jit *jit, enum JR_e dst, enum JR_e mem, int imm8);
-void jins_MOVmr(struct jit *jit, enum JR_e mem, int imm8, enum JR_e src);
+void jins_MOVrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG);
+void jins_MOVmr(struct jit *jit, JINS_MEM_ARG, enum JR_e src);
 
 // After all the instruction are added, obtain a callable function.
 void (*jit_compile(struct jit *jit))();

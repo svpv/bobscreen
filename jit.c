@@ -54,6 +54,10 @@ static void jins_saveRegs(struct jit *jit)
 {
     jins86_PUSH(jit, RBX);
     jins86_PUSH(jit, RBP);
+#if defined(_WIN32) || defined(__CYGWIN__)
+    jins86_PUSH(jit, RSI);
+    jins86_PUSH(jit, RDI);
+#endif
     jins86_PUSH(jit, R12);
     jins86_PUSH(jit, R13);
     jins86_PUSH(jit, R14);
@@ -66,6 +70,10 @@ static void jins_restoreRegs(struct jit *jit)
     jins86_POP(jit, R14);
     jins86_POP(jit, R13);
     jins86_POP(jit, R12);
+#if defined(_WIN32) || defined(__CYGWIN__)
+    jins86_POP(jit, RDI);
+    jins86_POP(jit, RSI);
+#endif
     jins86_POP(jit, RBP);
     jins86_POP(jit, RBX);
 }
@@ -116,12 +124,18 @@ void (*jit_compile(struct jit *jit))()
 }
 
 static const uint8_t JRto86map[] = {
-    RAX, RCX, RDX, RBX, RBP,
-    R8, R9, R10, R11, R12, R13, R14, R15,
-    RDI, RSI
+    RAX, RBX, RBP,
+#if defined(_WIN32) || defined(__CYGWIN__)
+    RSI, RDI,
+    R10, R11, R12, R13, R14, R15,
+    R9, R8, RDX, RCX,
+#else
+    R10, R11, R12, R13, R14, R15,
+    R9, R8, RCX, RDX, RSI, RDI,
+#endif
 };
 
-#define JRto86(reg) (assert(reg < sizeof JRto86map), JRto86map[reg])
+#define JRto86(reg) (assert(reg >= 0 && reg < sizeof JRto86map), JRto86map[reg])
 
 static void jins86_OPrr(struct jit *jit, int op, enum R86_e dst, enum R86_e src)
 {
@@ -157,7 +171,7 @@ static void jins86_OPrs(struct jit *jit, int mod, enum R86_e reg, int imm8)
     *jit->cur++ = imm8;
 }
 
-#define ShiftVal(imm8) (assert(imm8 >= 0), assert(imm8 < 64), imm8)
+#define ShiftVal(imm8) (assert(imm8 >= 0 && imm8 < 64), imm8)
 #define OPrs(mod) jins86_OPrs(jit, mod, JRto86(reg), ShiftVal(imm8))
 
 void jins_ROTL(struct jit *jit, enum JR_e reg, int imm8) { OPrs(0); }
@@ -178,7 +192,7 @@ static void jins86_OPr(struct jit *jit, int op, int modrm, enum JR_e reg)
 
 void jins_BSWAP(struct jit *jit, enum JR_e reg) { OPr(0x0f, 0xc8); }
 
-static void jins86_OPrm(struct jit *jit, int op, enum R86_e reg, enum R86_e mem, int imm8)
+static void jins86_OPrm(struct jit *jit, int op, enum R86_e reg, enum R86_e mem, int disp8)
 {
     int rex = 0x48;
     rex |= (reg >= R8) << 2;
@@ -186,18 +200,18 @@ static void jins86_OPrm(struct jit *jit, int op, enum R86_e reg, enum R86_e mem,
     *jit->cur++ = rex;
     *jit->cur++ = op;
 
-    int has8 = (imm8 != 0);
+    int has8 = (disp8 != 0);
     int modrm = (has8 << 6);
     modrm |= (reg & 7) << 3;
     modrm |= (mem & 7) << 0;
     *jit->cur++ = modrm;
-    *jit->cur = imm8;
+    *jit->cur = disp8;
     jit->cur += has8;
 }
 
-#define DispVal(imm8) (assert(imm8 >= -128 && imm8 < 128), imm8)
-#define OPrm(op) jins86_OPrm(jit, op, JRto86(dst), JRto86(mem), DispVal(imm8))
-#define OPmr(op) jins86_OPrm(jit, op, JRto86(src), JRto86(mem), DispVal(imm8))
+#define DispVal(disp8) (assert(disp8 >= 0 && disp8 < 128), disp8)
+#define OPrm(op) jins86_OPrm(jit, op, JRto86(dst), JRto86(mem), DispVal(disp8))
+#define OPmr(op) jins86_OPrm(jit, op, JRto86(src), JRto86(mem), DispVal(disp8))
 
-void jins_MOVrm(struct jit *jit, enum JR_e dst, enum JR_e mem, int imm8) { OPrm(0x8b); }
-void jins_MOVmr(struct jit *jit, enum JR_e mem, int imm8, enum JR_e src) { OPmr(0x89); }
+void jins_MOVrm(struct jit *jit, enum JR_e dst, JINS_MEM_ARG) { OPrm(0x8b); }
+void jins_MOVmr(struct jit *jit, JINS_MEM_ARG, enum JR_e src) { OPmr(0x89); }
