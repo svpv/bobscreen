@@ -67,6 +67,21 @@ do {							\
     jit_free(jit);					\
 } while (0)
 
+#define COP_BSWAP __builtin_bswap64
+
+#define TEST_OPr(JOP)					\
+do {							\
+    struct jit *jit = jit_new();			\
+    jins_MOV(jit, JR0, JR_ARG0);			\
+    jins_##JOP(jit, JR0);				\
+    uint64_t (*func)(uint64_t x) =			\
+	jit_compile(jit);				\
+    uint64_t x = random();				\
+    uint64_t y = func(x);				\
+    assert(COP_##JOP(x) == y);				\
+    jit_free(jit);					\
+} while (0)
+
 static void test_swap(void)
 {
     struct jit *jit = jit_new();
@@ -115,6 +130,7 @@ int main()
 	TEST_OPm(XOR, ^);
 	TEST_OPs(ROTL);
 	TEST_OPs(ROTR);
+	TEST_OPr(BSWAP);
 	test_swap();
 	test_XORswap();
     }
