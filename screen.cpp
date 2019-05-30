@@ -103,6 +103,23 @@ public:
   {
   }
 
+  // Restore to the original SpookyMix function.
+  void PreloadSpooky()
+  {
+    assert(_ops == 5);
+    assert(_vars == 12);
+
+    EmitOp(0, OP_ADD);
+    EmitOp(1, OP_XOR); SetBinopVars(1, 2, 10);
+    EmitOp(2, OP_XOR); SetBinopVars(2, 11, 0);
+    EmitOp(3, OP_ROT); EmitRot(3, 0);
+    EmitOp(4, OP_ADD); SetBinopVars(4, 11, 1);
+
+    const uint8_t shifts[] = { 11, 32, 43, 31, 17, 28, 39, 57, 55, 54, 22, 46, };
+    for (int iVar=0; iVar<_vars; ++iVar)
+      _s[iVar] = _s[iVar + _vars] = shifts[iVar];
+  }
+
   // generate a new function at random
   void Generate()
   {
