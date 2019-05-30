@@ -137,6 +137,23 @@ public:
       _s[iVar] = _s[iVar + _vars] = shifts[iVar];
   }
 
+  // Another Bob's brainchild was AkronHash.
+  void PreloadAkron()
+  {
+    assert(_ops == 5);
+    assert(_vars == 12);
+
+    EmitOp(0, OP_ADD);
+    EmitOp(1, OP_ROT); EmitRot(1, 2);
+    EmitOp(2, OP_XOR); SetBinopVars(2, 2, 0);
+    EmitOp(3, OP_ADD); SetBinopVars(3, 4, 0);
+    EmitOp(4, OP_ADD); SetBinopVars(4, 0, 3);
+
+    const uint8_t shifts[] = { 32, 37, 27, 48, 5, 7, 50, 18, 9, 44, 14, 30, };
+    for (int iVar=0; iVar<_vars; ++iVar)
+      _s[iVar] = _s[iVar + _vars] = shifts[iVar];
+  }
+
   // generate a new function at random
   void Generate()
   {
