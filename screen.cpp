@@ -120,6 +120,23 @@ public:
       _s[iVar] = _s[iVar + _vars] = shifts[iVar];
   }
 
+  // Examine the mixing function from SpookyAlpha.
+  void PreloadAlpha()
+  {
+    assert(_ops == 5);
+    assert(_vars == 12);
+
+    EmitOp(0, OP_ADD);
+    EmitOp(1, OP_ROT); EmitRot(1, 11);
+    EmitOp(2, OP_XOR); SetBinopVars(2, 9, 1);
+    EmitOp(3, OP_ADD); SetBinopVars(3, 11, 10);
+    EmitOp(4, OP_ADD); SetBinopVars(4, 1, 10);
+
+    const uint8_t shifts[] = { 32, 41, 12, 24, 8, 42, 32, 13, 30, 20, 47, 16, };
+    for (int iVar=0; iVar<_vars; ++iVar)
+      _s[iVar] = _s[iVar + _vars] = shifts[iVar];
+  }
+
   // generate a new function at random
   void Generate()
   {
