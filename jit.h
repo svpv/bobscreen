@@ -53,6 +53,8 @@ void jins_ADD(struct jit *jit, enum JR_e dst, enum JR_e src);
 void jins_SUB(struct jit *jit, enum JR_e dst, enum JR_e src);
 void jins_XOR(struct jit *jit, enum JR_e dst, enum JR_e src);
 
+void jins_SHL(struct jit *jit, enum JR_e reg, int imm8);
+void jins_SHR(struct jit *jit, enum JR_e reg, int imm8);
 void jins_ROTL(struct jit *jit, enum JR_e reg, int imm8);
 void jins_ROTR(struct jit *jit, enum JR_e reg, int imm8);
 void jins_BSWAP(struct jit *jit, enum JR_e reg);

@@ -50,6 +50,8 @@ do {							\
     jit_free(jit);					\
 } while (0)
 
+#define COP_SHL(x, s) (x << s)
+#define COP_SHR(x, s) (x >> s)
 #define COP_ROTL(x, s) (x << s | x >> (64 - s))
 #define COP_ROTR(x, s) (x >> s | x << (64 - s))
 
@@ -128,6 +130,8 @@ int main()
 	TEST_OPm(ADD, +);
 	TEST_OPm(SUB, -);
 	TEST_OPm(XOR, ^);
+	TEST_OPs(SHL);
+	TEST_OPs(SHR);
 	TEST_OPs(ROTL);
 	TEST_OPs(ROTR);
 	TEST_OPr(BSWAP);

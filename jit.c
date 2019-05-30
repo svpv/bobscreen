@@ -175,6 +175,8 @@ static void jins86_OPrs(struct jit *jit, int mod, enum R86_e reg, int imm8)
 #define ShiftVal(imm8) (assert(imm8 >= 0 && imm8 < 64), imm8)
 #define OPrs(mod) jins86_OPrs(jit, mod, JRto86(reg), ShiftVal(imm8))
 
+void jins_SHL(struct jit *jit, enum JR_e reg, int imm8) { OPrs(4); }
+void jins_SHR(struct jit *jit, enum JR_e reg, int imm8) { OPrs(5); }
 void jins_ROTL(struct jit *jit, enum JR_e reg, int imm8) { OPrs(0); }
 void jins_ROTR(struct jit *jit, enum JR_e reg, int imm8) { OPrs(1); }
 
