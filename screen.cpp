@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <assert.h>
+#include <limits.h>
+#include <algorithm>
 #include "jit.h"
 
 //
@@ -206,24 +208,40 @@ public:
 
   int Test()
   {
-    int minVal = _vars*64;
+    int minVal = INT_MAX;
+
     for (int iVar=0; iVar<_vars; ++iVar)
     {
-      for (int iMess=0; iMess<1 /* _vars */; ++iMess) // hack
-      {
-	int aVal = OneTest(0, iVar, iMess);
-	if (aVal == 0)
-        {
-	  return 0;
-	}
-	if (aVal < minVal) minVal = aVal;
-	aVal = OneTest(1, iVar, iMess);
-	if (aVal == 0)
-	{
-	  return 0;
-	}
-	if (aVal < minVal) minVal = aVal;
+      static const int tries = 5;
+      int try0[tries], try1[tries];
+
+      JitMixFunc Mix0(*this, 1, iVar);
+      int aVal0 = OneTest(Mix0);
+      if (aVal0 == 0) return 0;
+      try0[0] = aVal0;
+
+      JitMixFunc Mix1(*this, 0, iVar);
+      int aVal1 = OneTest(Mix1);
+      if (aVal1 == 0) return 0;
+      try1[0] = aVal1;
+
+      for (int i = 1; i < tries; i++) {
+	aVal0 = OneTest(Mix0);
+	if (aVal0 == 0) return 0;
+	try0[i] = aVal0;
+	aVal1 = OneTest(Mix1);
+	if (aVal1 == 0) return 0;
+	try1[i] = aVal1;
       }
+
+      std::sort(try0, try0 + tries);
+      std::sort(try1, try1 + tries);
+
+      // Robust estimate, ignore outliers at [0].
+      int e0 = (try0[1] + try0[2]) / 2;
+      int e1 = (try1[1] + try1[2]) / 2;
+      minVal = std::min(minVal, e0);
+      minVal = std::min(minVal, e1);
     }
     printf("// minVal = %d\n", minVal);
     return 1;
@@ -340,15 +358,15 @@ private:
     }
   }
 
-  int OneTest(int forwards, int start, int goose)
+  class JitMixFunc;
+
+  int OneTest(JitMixFunc& Mix)
   {
     static const int _measures = 10;  // number of different ways of looking
     static const int _trials = 3;     // number of pairs of hashes
     static const int _limit =3*64;    // minimum number of bits affected
     uint64_t a[_measures][_vars];
     int minVal = _vars*64;
-
-    JitMixFunc jitmix(*this, forwards, start);
 
     // iBit covers just key[0], because that is the variable we start at
     for (int iBit=0; iBit<64; ++iBit)
@@ -369,7 +387,7 @@ private:
 	  }
 	  
 	  // evaluate first of pair
-	  jitmix(a[0], data);
+	  Mix(a[0], data);
 	  
 	  // evaluate second of pair, differing in one bit
 	  data[iBit/64] ^= (((uint64_t)1) << (iBit & 63));
@@ -377,7 +395,7 @@ private:
 	  {
 	    data[iBit2/64] ^= (((uint64_t)1) << (iBit2 & 63));
 	  }
-	  jitmix(a[1], data);
+	  Mix(a[1], data);
 	  
 	  for (int iVar=0; iVar<_vars; ++iVar)
 	  {
