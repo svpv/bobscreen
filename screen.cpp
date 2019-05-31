@@ -159,13 +159,13 @@ public:
   {
     // We need to perfrom the following steps:
     // -  s0 ?= data[0]   data injection
-    // -  s2 ?= s10       unrelated long-distance mix
+    // -  s2 ?= s10       long-distance mix, s10 from the last iteration
+    // -  s0 = Rot64(s0)  permute after injection
     // -  s11 ?= s0       mixing the data into the previous var
-    // -  s0 = Rot64(s0)  late rotate, can be made early
     // -  s11 ?= s1       mix old next var into the previous var
 
-    // Need one ROT, early or late.
-    int rotpos = 2 + _r.Value() % 2;
+    // Unlike in the original construction, ours is an early ROT.
+    int rotpos = 2;
     EmitRot(rotpos, 0);
 
     // Need at least one ADD/SUB and at least one XOR.
