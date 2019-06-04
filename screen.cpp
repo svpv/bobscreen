@@ -590,32 +590,36 @@ private:
 };
 
   
-void driver(uint64_t seed, FILE *fp, int numFunctions)
+void driver(uint64_t seed, FILE *fp, int minGood, int maxBad)
 {
   Sieve sieve(seed, fp);
 
   sieve.Pre();
 
-  int version = 0;
-  while (version < numFunctions)
-  {
+  for (int good = 0, bad = 0; good < minGood && bad < maxBad; ) {
     sieve.Generate();
     if (sieve.Test())
-    {
-      sieve.ReportCode(version++);
-    }
+      sieve.ReportCode(good++);
+    else
+      bad++;
   }
 
-  sieve.Post(numFunctions);
+  sieve.Post(minGood);
 }
 
 int main(int argc, char **argv)
 {
-  int n = 3;
+  int n = 3, N = n * 99;
   if (argc > 1) {
-    assert(argc == 2);
     n = atoi(argv[1]);
     assert(n > 0);
+    if (argc == 2)
+      N = n * 99;
+    else {
+      assert(argc == 3);
+      N = atoi(argv[2]);
+      assert(N >= n);
+    }
   }
   driver(21, stdout, n);
 }
